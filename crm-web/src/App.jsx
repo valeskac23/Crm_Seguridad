@@ -1,103 +1,78 @@
-import { useEffect, useState } from 'react'
-import axios from 'axios'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
-import L from 'leaflet'
-
-// Corrección para el icono del marcador por defecto de Leaflet en React
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
+import NuevoGuardia from './pages/NuevoGuardia';
+import GestionUsuarios from './pages/GestionUsuarios';
+import Login from './pages/Login';
 
 function App() {
-  const [estadoServer, setEstadoServer] = useState("Buscando central...")
+  const token = localStorage.getItem('token');
+  const rol = localStorage.getItem('rol');
+  const isAuthenticated = !!token;
 
-  // Coordenadas de prueba para la "Oficina Central" (puedes cambiarlas)
-  // Ejemplo: Caracas, Venezuela
-  const posicionOficina = [10.48801, -66.87919]
+  // 1. Si NO está autenticado, solo mostramos el Login
+  if (!isAuthenticated) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          {/* Cualquier otra ruta redirige a login */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
 
-  useEffect(() => {
-    axios.get('http://localhost:3000/')
-      .then(respuesta => setEstadoServer(respuesta.data.mensaje))
-      .catch(() => setEstadoServer("Error de conexión"))
-  }, [])
-
+  // 2. Si ESTÁ autenticado, mostramos toda la estructura del Dashboard
   return (
-    // Contenedor Principal con Flexbox (Tailwind clases)
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
+    <BrowserRouter>
+      <div className="flex h-screen bg-gray-100">
+        {/* SIDEBAR */}
+        <aside className="w-64 bg-slate-900 text-white p-5 hidden md:flex flex-col">
+          <h1 className="text-2xl font-bold text-sky-400 mb-2">SeguridadPro</h1>
+          <p className="text-[10px] text-slate-500 mb-8 uppercase tracking-widest">
+            Panel: {rol === 'admin' ? 'Administrador' : 'Operador'}
+          </p>
 
-      {/* 1. BARRA LATERAL (Sidebar) */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col p-5">
-        <h1 className="text-2xl font-bold text-sky-400 mb-10">SeguridadPro</h1>
-        <nav className="space-y-4">
-          <a href="#" className="block p-3 bg-sky-600 rounded-lg font-semibold">Dashboard</a>
-          <a href="#" className="block p-3 hover:bg-slate-700 rounded-lg">Guardias</a>
-          <a href="#" className="block p-3 hover:bg-slate-700 rounded-lg">Incidentes</a>
-          <a href="#" className="block p-3 hover:bg-slate-700 rounded-lg">Reportes</a>
-        </nav>
-      </aside>
+          <nav className="flex-1 space-y-2">
+            <a href="/" className="flex items-center gap-2 p-3 hover:bg-slate-800 rounded-lg">🛰️ Monitor</a>
 
-      {/* 2. ÁREA DE CONTENIDO (Header + Main) */}
-      <div className="flex-1 flex flex-col">
+            {rol === 'admin' && (
+              <div className="pt-6">
+                <p className="text-[10px] text-slate-500 mb-2 px-3 uppercase text-sky-500/50">Administración</p>
+                <a href="/nuevo" className="flex items-center gap-2 p-3 hover:bg-slate-800 rounded-lg text-sm">➕ Registrar Guardia</a>
+                <a href="/usuarios" className="flex items-center gap-2 p-3 hover:bg-slate-800 rounded-lg text-sm">👥 Crear Usuarios</a>
+              </div>
+            )}
+          </nav>
 
-        {/* HEADER */}
-        <header className="bg-white shadow p-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">Monitor Operativo</h2>
+          <button
+            onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
+            className="mt-auto p-3 bg-slate-800 hover:bg-red-900 text-red-400 rounded-lg text-sm font-bold transition"
+          >
+            🚪 Cerrar Sesión
+          </button>
+        </aside>
 
-          {/* Indicador de Estado (Estilizado con Tailwind) */}
-          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${estadoServer?.includes("Error") ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-            }`}>
-            <div className={`w-2 h-2 rounded-full ${estadoServer?.includes("Error") ? 'bg-red-500' : 'bg-green-500'
-              }`}></div>
-            {estadoServer}
-          </div>
-        </header>
+        {/* CONTENIDO PRINCIPAL */}
+        <main className="flex-1 overflow-y-auto">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
 
-        {/* CONTENIDO PRINCIPAL (Donde va el mapa) */}
-        <main className="flex-1 p-6 overflow-y-auto">
+            {/* Solo se registran estas rutas si es admin */}
+            {rol === 'admin' && (
+              <>
+                <Route path="/nuevo" element={<NuevoGuardia />} />
+                <Route path="/usuarios" element={<GestionUsuarios />} />
+              </>
+            )}
 
-          {/* Tarjeta contenedora del mapa */}
-          <div className="bg-white p-4 rounded-xl shadow-md h-full flex flex-col">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">Ubicación de Oficina Central</h3>
-
-            {/* EL MAPA (react-leaflet) */}
-            {/* Importante: el contenedor del mapa debe tener una altura definida */}
-            <div className="flex-1 rounded-lg overflow-hidden border border-gray-200" style={{ height: '100%' }}>
-              <MapContainer
-                center={posicionOficina}
-                zoom={15}
-                scrollWheelZoom={true}
-                className="h-full w-full" /* Tailwind clases para ocupar todo el div */
-              >
-                {/* Capa base del mapa (OpenStreetMap) */}
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-
-                {/* Marcador de la Oficina */}
-                <Marker position={posicionOficina}>
-                  <Popup>
-                    <div className='font-sans'>
-                      <strong className='text-sky-700'>Oficina Central</strong><br />
-                      Sede Operativa SeguridadPro
-                    </div>
-                  </Popup>
-                </Marker>
-              </MapContainer>
-            </div>
-          </div>
-
+            {/* Si intenta entrar a una ruta admin siendo usuario, vuelve al dashboard */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </main>
       </div>
-    </div>
-  )
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
